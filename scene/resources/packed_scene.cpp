@@ -46,7 +46,7 @@ bool SceneState::can_instance() const {
 	return nodes.size() > 0;
 }
 
-Node *SceneState::instance(GenEditState p_edit_state) const {
+Node *SceneState::instance(GenEditState p_edit_state, Node *p_base) const {
 
 	// nodes where instancing failed (because something is missing)
 	List<Node *> stray_instances;
@@ -110,12 +110,16 @@ Node *SceneState::instance(GenEditState p_edit_state) const {
 
 		if (i == 0 && base_scene_idx >= 0) {
 			//scene inheritance on root node
-			Ref<PackedScene> sdata = props[base_scene_idx];
-			ERR_FAIL_COND_V(!sdata.is_valid(), NULL);
-			node = sdata->instance(p_edit_state == GEN_EDIT_STATE_DISABLED ? PackedScene::GEN_EDIT_STATE_DISABLED : PackedScene::GEN_EDIT_STATE_INSTANCE); //only main gets main edit state
-			ERR_FAIL_COND_V(!node, NULL);
-			if (p_edit_state != GEN_EDIT_STATE_DISABLED) {
-				node->set_scene_inherited_state(sdata->get_state());
+			if (p_base == nullptr) {
+				Ref<PackedScene> sdata = props[base_scene_idx];
+				ERR_FAIL_COND_V(!sdata.is_valid(), nullptr);
+				node = sdata->instance(p_edit_state == GEN_EDIT_STATE_DISABLED ? PackedScene::GEN_EDIT_STATE_DISABLED : PackedScene::GEN_EDIT_STATE_INSTANCE); //only main gets main edit state
+				ERR_FAIL_COND_V(!node, nullptr);
+				if (p_edit_state != GEN_EDIT_STATE_DISABLED) {
+					node->set_scene_inherited_state(sdata->get_state());
+				}
+			} else {
+				node = p_base;
 			}
 
 		} else if (n.instance >= 0) {
@@ -1690,24 +1694,40 @@ bool PackedScene::can_instance() const {
 }
 
 Node *PackedScene::instance(GenEditState p_edit_state) const {
-
-#ifndef TOOLS_ENABLED
-	ERR_FAIL_COND_V_MSG(p_edit_state != GEN_EDIT_STATE_DISABLED, NULL, "Edit state is only for editors, does not work without tools compiled.");
-#endif
+//#ifndef TOOLS_ENABLED
+//	ERR_FAIL_COND_V_MSG(p_edit_state != GEN_EDIT_STATE_DISABLED, nullptr, "Edit state is only for editors, does not work without tools compiled.");
+//#endif
 
 	Node *s = state->instance((SceneState::GenEditState)p_edit_state);
-	if (!s)
-		return NULL;
+	if (!s) {
+		return nullptr;
+	}
 
 	if (p_edit_state != GEN_EDIT_STATE_DISABLED) {
 		s->set_scene_instance_state(state);
 	}
 
-	if (get_path() != "" && get_path().find("::") == -1)
+	if (get_path() != "" && get_path().find("::") == -1) {
 		s->set_filename(get_path());
+	}
 
 	s->notification(Node::NOTIFICATION_INSTANCED);
 
+	return s;
+}
+
+Node *PackedScene::apply(Node *base) const {
+//#ifndef TOOLS_ENABLED
+//	ERR_FAIL_COND_V_MSG(p_edit_state != GEN_EDIT_STATE_DISABLED, nullptr, "Edit state is only for editors, does not work without tools compiled.");
+//#endif
+	Node *s = state->instance((SceneState::GenEditState)GEN_EDIT_STATE_DISABLED, base);
+
+	if (!s) {
+		return nullptr;
+	}
+
+	s->notification(Node::NOTIFICATION_INSTANCED);
+	
 	return s;
 }
 
@@ -1744,6 +1764,7 @@ void PackedScene::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("pack", "path"), &PackedScene::pack);
 	ClassDB::bind_method(D_METHOD("instance", "edit_state"), &PackedScene::instance, DEFVAL(GEN_EDIT_STATE_DISABLED));
+	ClassDB::bind_method(D_METHOD("apply", "base"), &PackedScene::apply);
 	ClassDB::bind_method(D_METHOD("can_instance"), &PackedScene::can_instance);
 	ClassDB::bind_method(D_METHOD("_set_bundled_scene"), &PackedScene::_set_bundled_scene);
 	ClassDB::bind_method(D_METHOD("_get_bundled_scene"), &PackedScene::_get_bundled_scene);

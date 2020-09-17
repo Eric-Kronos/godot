@@ -142,7 +142,7 @@ public:
 	void clear();
 
 	bool can_instance() const;
-	Node *instance(GenEditState p_edit_state) const;
+	Node *instance(GenEditState p_edit_state, Node *p_base = nullptr) const;
 
 	//unbuild API
 
@@ -221,6 +221,7 @@ public:
 
 	bool can_instance() const;
 	Node *instance(GenEditState p_edit_state = GEN_EDIT_STATE_DISABLED) const;
+	Node *apply(Node *p_base) const;
 
 	void recreate_state();
 	void replace_state(Ref<SceneState> p_by);
